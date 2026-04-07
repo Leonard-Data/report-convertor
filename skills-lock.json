@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "skills": {
+    "aiohttp": {
+      "source": "CodeAtCode/oss-ai-skills",
+      "sourceType": "github",
+      "computedHash": "b307d9aafa7edba6ca8e68491bc4fbfe142df072539d9ec726f97fa177f167d6"
+    },
+    "httpx": {
+      "source": "CodeAtCode/oss-ai-skills",
+      "sourceType": "github",
+      "computedHash": "d4bcd88847b2883c92760ceef79be4a150834038edda08f777a836a69202aade"
+    },
+    "prompt-optimizer": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "eac7e4542b5cd1613ccf46e1d85ffd154cebf2de91e279bdf6508a7f66e04dcc"
+    },
+    "pydantic": {
+      "source": "CodeAtCode/oss-ai-skills",
+      "sourceType": "github",
+      "computedHash": "b88562c85331bad6c0fcc636b4055d4e0ad42522d5d16cba8a44bd18a3d53393"
+    },
+    "pyqt": {
+      "source": "CodeAtCode/oss-ai-skills",
+      "sourceType": "github",
+      "computedHash": "b21e3ffba031b6d7c2244bb9028ce63c2d9f02d34cd15d028085206b771aac77"
+    },
+    "pyqt-core": {
+      "source": "CodeAtCode/oss-ai-skills",
+      "sourceType": "github",
+      "computedHash": "472ec68460c03afb872232dd1594ba08bd1b6c9fb324ea8892063c96f078a70c"
+    },
+    "pyqt-dialogs": {
+      "source": "CodeAtCode/oss-ai-skills",
+      "sourceType": "github",
+      "computedHash": "c5145408e7bd7fe0f26a777209e7ca05bc41f62bd9692f83b35a1afd947841d3"
+    },
+    "pyqt-multimedia": {
+      "source": "CodeAtCode/oss-ai-skills",
+      "sourceType": "github",
+      "computedHash": "777617a722c8689d850a9707f057b68f30cf2c1c6ebf3e6799acced6628216e7"
+    },
+    "pyqt-styling": {
+      "source": "CodeAtCode/oss-ai-skills",
+      "sourceType": "github",
+      "computedHash": "a4ac04df87f234d3fcc59489c8f38ab78be26a20314dc483ed238c44a7505e7f"
+    },
+    "pyqt-testing": {
+      "source": "CodeAtCode/oss-ai-skills",
+      "sourceType": "github",
+      "computedHash": "629c3926bc2812282653f43101f4ccce887051b831b863bd038ef373029c21bf"
+    },
+    "pyqt-widgets": {
+      "source": "CodeAtCode/oss-ai-skills",
+      "sourceType": "github",
+      "computedHash": "69bb282e098f465a93968eab3efa7e08480367659034438faee33e558504aaec"
+    },
+    "pytest": {
+      "source": "CodeAtCode/oss-ai-skills",
+      "sourceType": "github",
+      "computedHash": "a28718647fbf711ff7d873260403fb4727bf66a104b528144dd6c2cb740e0fc7"
+    },
+    "python-patterns": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "fb08a3345b09766c7423a837cd8a3e416abc4b71a51ff8c1901622bb73b999ef"
+    },
+    "python-testing": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "9bb9ccc595dbc4fd6ea1e70ba14e0d9c17f0ed0dc55331d593b1e0965d31df39"
+    },
+    "sqlite": {
+      "source": "CodeAtCode/oss-ai-skills",
+      "sourceType": "github",
+      "computedHash": "d25594589e54c511bf054e941700e8506ed2cb0e6a9d31fac7ef5cbeb03da277"
+    }
+  }
+}
