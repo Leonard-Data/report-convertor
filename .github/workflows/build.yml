@@ -1,0 +1,73 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '**/*.py'
+      - 'pyproject.toml'
+      - 'requirements*.txt'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,packaging]"
+
+      - name: Run tests
+        run: pytest
+
+      - name: Get latest tag or use default
+        id: tag
+        run: |
+          $tags = git tag --sort=-v:refname | Select-Object -First 1
+          if ($tags) {
+            $version = $tags.TrimStart('v')
+            $parts = $version.Split('.')
+            $patch = [int]$parts[2] + 1
+            $newVersion = "$($parts[0]).$($parts[1]).$patch"
+          } else {
+            $newVersion = "0.1.0"
+          }
+          Write-Host "New version: $newVersion"
+          echo "new_version=$newVersion" >> $env:GITHUB_OUTPUT
+          echo "tag_version=v$newVersion" >> $env:GITHUB_OUTPUT
+
+      - name: Create tag
+        run: git tag ${{ steps.tag.outputs.tag_version }}
+
+      - name: Push tag
+        run: git push origin ${{ steps.tag.outputs.tag_version }}
+
+      - name: Build executable
+        run: |
+          pyinstaller --onefile --windowed --name report-convertor main.py
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.tag_version }}
+          name: Release ${{ steps.tag.outputs.tag_version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            dist/report-convertor.exe
