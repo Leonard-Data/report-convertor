@@ -68,28 +68,40 @@ class S3TemplateSelectDialog(QDialog):
 
             template_item = QTreeWidgetItem(self._tree, [name])
             template_item.setExpanded(True)
+            template_item.setData(
+                0, Qt.ItemDataRole.UserRole, {"name": name, "version": None}
+            )
 
             for version in versions:
                 version_item = QTreeWidgetItem(template_item, [version])
-                version_item.setCheckState(0, Qt.CheckState.Unchecked)
                 version_item.setData(
                     0, Qt.ItemDataRole.UserRole, {"name": name, "version": version}
                 )
 
+        self._tree.itemClicked.connect(self._on_item_clicked)
+        self._tree.itemActivated.connect(self._on_item_clicked)
+
     def _on_search_changed(self, text: str) -> None:
         self._build_tree(text)
 
+    def _on_item_clicked(self, item: QTreeWidgetItem, column: int) -> None:
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if data:
+            self._selected_item = data
+            if data.get("version") is None:
+                if item.childCount() > 0:
+                    first_child = item.child(0)
+                    child_data = first_child.data(0, Qt.ItemDataRole.UserRole)
+                    if child_data:
+                        self._selected_item = child_data
+
     def selected_template_version(self) -> tuple[str, str] | None:
         """Return (template_name, version) tuple for selected template version."""
-        iterator = QTreeWidgetItemIterator(self._tree)
-        while True:
-            try:
-                item = next(iterator)
-            except StopIteration:
-                break
-            data = item.data(0, Qt.ItemDataRole.UserRole)
-            if data and item.checkState(0) == Qt.CheckState.Checked:
-                return (data.get("name", ""), data.get("version", ""))
+        if hasattr(self, "_selected_item") and self._selected_item:
+            name = self._selected_item.get("name", "")
+            version = self._selected_item.get("version")
+            if name and version:
+                return (name, version)
         return None
 
 

@@ -30,9 +30,12 @@ class MockEditor:
         self.version_combo = MagicMock()
         self.templates_dir = Path("templates")
         self._show_status = MagicMock()
+        self._load_draft_mock = MagicMock()
+        self.refresh_versions = MagicMock()
 
     def load_draft(self, draft):
         self._loaded_draft = draft
+        self._load_draft_mock(draft)
 
     @property
     def show_status(self):
@@ -164,6 +167,134 @@ class TestLoadTemplateFromS3Unified:
 
             controller.load_template_from_s3_unified()
 
+    @patch("boto3.client")
+    def test_load_template_from_s3_unified_downloads_sources(self, mock_boto):
+        """Downloads source files from S3 when template contains S3 paths."""
+        from report_convertor.models.template import SourceFile
+
+        editor = MockEditor()
+        controller = TemplateEditorController(editor)
+
+        mock_s3_repo = MagicMock()
+        mock_s3_repo.list_templates.return_value = ["template1"]
+        mock_s3_repo.list_versions.return_value = ["v1"]
+        mock_s3_repo.load_template.return_value = TemplateDraft(
+            template_name="template1",
+            output_file="output.xlsx",
+            sources=[
+                SourceFile(
+                    key="reports/data1.xlsx", file_path="s3://reports/data1.xlsx"
+                ),
+                SourceFile(
+                    key="reports/data2.xlsx", file_path="s3://reports/data2.xlsx"
+                ),
+            ],
+        )
+        controller._s3_repo = mock_s3_repo
+
+        mock_report_repo = MagicMock()
+        mock_report_repo.download_report_by_key.side_effect = [
+            Path("/cache/data1.xlsx"),
+            Path("/cache/data2.xlsx"),
+        ]
+        controller._s3_report_repo = mock_report_repo
+
+        with (
+            patch(
+                "report_convertor.components.template_editor_controller.S3TemplateSelectDialog"
+            ) as mock_dialog_class,
+            patch.object(controller, "_run_action") as mock_run,
+        ):
+            mock_dialog = MagicMock()
+            mock_dialog.exec.return_value = True
+            mock_dialog.selected_template_version.return_value = ("template1", "v1")
+            mock_dialog_class.return_value = mock_dialog
+
+            def capture_action(action):
+                action()
+
+            mock_run.side_effect = capture_action
+
+            controller.load_template_from_s3_unified()
+
+        mock_report_repo.download_report_by_key.assert_any_call(
+            "s3://reports/data1.xlsx"
+        )
+        mock_report_repo.download_report_by_key.assert_any_call(
+            "s3://reports/data2.xlsx"
+        )
+
+    @patch("boto3.client")
+    def test_load_template_from_s3_unified_applies_data_to_editor(self, mock_boto):
+        """Applies template data to editor UI after successful load."""
+        from report_convertor.models.template import SourceFile
+
+        editor = MockEditor()
+        controller = TemplateEditorController(editor)
+
+        mock_s3_repo = MagicMock()
+        mock_s3_repo.list_templates.return_value = ["template1"]
+        mock_s3_repo.list_versions.return_value = ["v1"]
+        mock_s3_repo.load_template.return_value = TemplateDraft(
+            template_name="template1",
+            output_file="output.xlsx",
+            sources=[],
+        )
+        controller._s3_repo = mock_s3_repo
+        controller._s3_report_repo = MagicMock()
+
+        with (
+            patch(
+                "report_convertor.components.template_editor_controller.S3TemplateSelectDialog"
+            ) as mock_dialog_class,
+            patch.object(controller, "_run_action") as mock_run,
+        ):
+            mock_dialog = MagicMock()
+            mock_dialog.exec.return_value = True
+            mock_dialog.selected_template_version.return_value = ("template1", "v1")
+            mock_dialog_class.return_value = mock_dialog
+
+            def capture_action(action):
+                action()
+
+            mock_run.side_effect = capture_action
+
+            controller.load_template_from_s3_unified()
+
+        editor._load_draft_mock.assert_called_once()
+        editor.template_path_input.setText.assert_called_with("s3://template1_v1")
+        editor.refresh_versions.assert_called_once()
+        editor.show_status.assert_called_with("Loaded template: template1 (v1)")
+
+    @patch("boto3.client")
+    def test_load_template_from_s3_unified_cancelled_selection(self, mock_boto):
+        """Does nothing when user cancels template selection dialog."""
+        editor = MockEditor()
+        controller = TemplateEditorController(editor)
+
+        mock_s3_repo = MagicMock()
+        mock_s3_repo.list_templates.return_value = ["template1"]
+        controller._s3_repo = mock_s3_repo
+
+        with (
+            patch(
+                "report_convertor.components.template_editor_controller.S3TemplateSelectDialog"
+            ) as mock_dialog_class,
+            patch.object(controller, "_run_action") as mock_run,
+        ):
+            mock_dialog = MagicMock()
+            mock_dialog.exec.return_value = False
+            mock_dialog_class.return_value = mock_dialog
+
+            def capture_action(action):
+                action()
+
+            mock_run.side_effect = capture_action
+
+            controller.load_template_from_s3_unified()
+
+        mock_s3_repo.load_template.assert_not_called()
+
 
 class TestPushTemplateToS3:
     """Tests for push_template_to_s3 method."""
@@ -204,7 +335,7 @@ class TestPushTemplateToS3:
         controller = TemplateEditorController(editor)
 
         mock_s3_repo = MagicMock()
-        mock_s3_repo.list_versions.return_value = ["v1", "v2"]
+        mock_s3_repo.list_versions.return_value = ["0.0.0.1", "0.0.0.2"]
         controller._s3_repo = mock_s3_repo
 
         with (
@@ -222,7 +353,7 @@ class TestPushTemplateToS3:
             controller.push_template_to_s3()
 
         call_args = mock_s3_repo.save_template.call_args
-        assert call_args[1]["version"] == "v3"
+        assert call_args[1]["version"] == "0.0.0.3"
 
 
 class TestAddSourceFile:
