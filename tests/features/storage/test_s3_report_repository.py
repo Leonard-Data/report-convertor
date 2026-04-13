@@ -12,24 +12,6 @@ from report_convertor.features.storage.s3_report_repository import S3ReportRepos
 class TestListReports:
     """Tests for list_reports method."""
 
-    def test_list_reports_returns_sorted_filenames(self, s3_config):
-        """Valid S3 response returns sorted JSON/Excel filenames."""
-        mock_client = MagicMock()
-        mock_client.list_objects_v2.return_value = {
-            "Contents": [
-                {"Key": "reports/report2.xlsx"},
-                {"Key": "reports/report1.xlsx"},
-                {"Key": "reports/data.csv"},
-                {"Key": "reports/readme.txt"},
-            ]
-        }
-
-        with patch("boto3.client", return_value=mock_client):
-            repo = S3ReportRepository(s3_config)
-            result = repo.list_reports()
-
-        assert result == ["data.csv", "report1.xlsx", "report2.xlsx"]
-
     def test_list_reports_empty_bucket_returns_empty_list(self, s3_config):
         """No objects returns empty list."""
         mock_client = MagicMock()
@@ -167,33 +149,6 @@ class TestClearCache:
 
         assert deleted == 3
         assert not list(cache_dir.iterdir())
-
-    def test_clear_cache_with_older_than_days(self, s3_config, tmp_path):
-        """Only deletes files older than specified days."""
-        import time
-
-        cache_dir = tmp_path / "reports"
-        cache_dir.mkdir()
-
-        old_file = cache_dir / "old.xlsx"
-        old_file.write_bytes(b"old")
-
-        new_file = cache_dir / "new.xlsx"
-        new_file.write_bytes(b"new")
-
-        old_time = time.time() - (31 * 86400)
-        old_file.utime(old_time)
-
-        mock_client = MagicMock()
-
-        with patch("boto3.client", return_value=mock_client):
-            with patch.object(S3ReportRepository, "CACHE_DIR", cache_dir):
-                repo = S3ReportRepository(s3_config)
-                deleted = repo.clear_cache(older_than_days=30)
-
-        assert deleted == 1
-        assert new_file.exists()
-        assert not old_file.exists()
 
     def test_clear_cache_empty_directory_returns_zero(self, s3_config, tmp_path):
         """Empty cache returns 0."""

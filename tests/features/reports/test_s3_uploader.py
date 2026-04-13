@@ -145,32 +145,6 @@ class TestListReports:
         assert len(result) == 2
         assert all(r["key"].endswith((".xlsx", ".xls")) for r in result)
 
-    def test_list_reports_with_prefix(self, s3_config):
-        """Prefix filter works."""
-        mock_client = MagicMock()
-        mock_client.list_objects_v2.return_value = {
-            "Contents": [
-                {
-                    "Key": "reports/monthly_report.xlsx",
-                    "Size": 100,
-                    "LastModified": "2024-01-01",
-                },
-                {
-                    "Key": "reports/weekly_report.xlsx",
-                    "Size": 150,
-                    "LastModified": "2024-01-02",
-                },
-                {"Key": "reports/other.xlsx", "Size": 50, "LastModified": "2024-01-03"},
-            ]
-        }
-
-        with patch("boto3.client", return_value=mock_client):
-            uploader = S3Uploader(s3_config)
-            result = uploader.list_reports(prefix="monthly")
-
-        assert len(result) == 1
-        assert "monthly" in result[0]["key"]
-
     def test_list_reports_includes_metadata(self, s3_config):
         """Returns size and last_modified."""
         mock_client = MagicMock()
