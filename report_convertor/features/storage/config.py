@@ -29,9 +29,19 @@ class S3Config:
 
     @classmethod
     def from_env(cls, env_path: Path | None = None) -> S3Config:
-        """Load S3 configuration from .env file."""
+        """Load S3 configuration from .env file.
+
+        When running as a PyInstaller frozen executable, looks for .env
+        next to the exe. In development, uses standard dotenv search.
+        """
+        import sys
+
         if env_path:
             load_dotenv(env_path)
+        elif getattr(sys, "frozen", False):
+            # Frozen exe: look for .env in the same directory as the executable
+            exe_env = Path(sys.executable).parent / ".env"
+            load_dotenv(exe_env)
         else:
             load_dotenv()
 

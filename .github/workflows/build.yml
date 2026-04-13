@@ -65,9 +65,13 @@ jobs:
       - name: Push tag
         run: git push origin ${{ steps.tag.outputs.tag_version }}
 
+      - name: Install UPX for compression
+        run: |
+          choco install upx -y
+
       - name: Build executable
         run: |
-          pyinstaller --onefile --windowed --name report-convertor main.py
+          pyinstaller report-convertor.spec
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -79,3 +83,4 @@ jobs:
           generate_release_notes: true
           files: |
             dist/report-convertor.exe
+            .env.example

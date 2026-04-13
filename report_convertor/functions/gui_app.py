@@ -30,7 +30,13 @@ def run_gui(templates_dir: Path) -> int:
 
 
 def _apply_stylesheet(app) -> None:
-    """Load and apply the dark QSS theme."""
-    qss_path = Path(__file__).parent.parent / "resources" / "style.qss"
+    """Load and apply the dark QSS theme (works both frozen and in dev)."""
+    import sys
+    if getattr(sys, "frozen", False):
+        # PyInstaller bundle: files land next to the exe in _MEIPASS
+        base = Path(sys._MEIPASS)  # type: ignore[attr-defined]
+    else:
+        base = Path(__file__).parent.parent
+    qss_path = base / "report_convertor" / "resources" / "style.qss"
     if qss_path.exists():
         app.setStyleSheet(qss_path.read_text(encoding="utf-8"))
