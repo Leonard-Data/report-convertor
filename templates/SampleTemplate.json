@@ -1,5 +1,5 @@
 {
-  "template_name": "Test generate",
+  "template_name": "SampleTemplate",
   "output_file": "output.xlsx",
   "destination_fields": [
     {

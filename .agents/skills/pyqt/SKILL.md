@@ -1782,61 +1782,6 @@ pip install nuitka
 python -m nuitka --standalone --windows-console-mode=disable --output-dir=build main.py
 ```
 
-## Testing
-
-### pytest-qt
-
-```bash
-pip install pytest-qt
-```
-
-```python
-# test_main.py
-import pytest
-from PySide6.QtWidgets import QApplication
-from main_window import MainWindow
-
-@pytest.fixture
-def app(qtbot):
-    window = MainWindow()
-    qtbot.addWidget(window)
-    return window
-
-def test_window_title(app):
-    assert app.windowTitle() == "My Application"
-
-def test_button_click(qtbot, app):
-    qtbot.mouseClick(app.button, Qt.LeftButton)
-    assert app.label.text() == "Button clicked"
-
-def test_signal_emission(qtbot, app):
-    with qtbot.waitSignal(app.valueChanged, timeout=1000):
-        app.setValue(42)
-```
-
-```bash
-# Run tests
-pytest tests/
-```
-
-### Manual Testing
-
-```python
-# Add debug output
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
-# Check memory
-from PySide6.QtCore import QObject
-print(f"QObject children: {len(self.children())}")
-
-# Dump widget tree
-def dump_widgets(widget, indent=0):
-    print(" " * indent + widget.objectName() or widget.__class__.__name__)
-    for child in widget.findChildren(QObject):
-        dump_widgets(child, indent + 2)
-```
-
 ## Best Practices
 
 ### Application Setup

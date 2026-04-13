@@ -17,8 +17,11 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Report Convertor")
         self.resize(1100, 720)
         self.setStatusBar(QStatusBar())
+
         self.editor = TemplateEditorWidget(templates_dir, self.statusBar().showMessage)
+
         self.setCentralWidget(self.editor)
+
         self.template_input = self.editor.template_path_input
         self.preview_rows_input = self.editor.preview_rows_input
         self.summary_label = self.editor.summary_label

@@ -1,8 +1,15 @@
-"""Shared fixtures for PyQt6 component tests."""
+"""Shared fixtures for tests."""
 
 import pytest
+from unittest.mock import MagicMock, patch
 
-from report_convertor.models.template import DestinationField, DraftMapping, SourceFile, TemplateDraft
+from report_convertor.models.template import (
+    DestinationField,
+    DraftMapping,
+    SourceFile,
+    TemplateDraft,
+)
+from report_convertor.features.storage.config import S3Config
 
 
 @pytest.fixture
@@ -75,3 +82,24 @@ def sample_combo_items() -> list[str]:
     """Sample items for searchable combo box."""
 
     return ["Option A", "Option B", "Option C", "Item One", "Item Two"]
+
+
+@pytest.fixture
+def mock_s3_client():
+    """Mock boto3 S3 client."""
+    client = MagicMock()
+    with patch("boto3.client", return_value=client):
+        yield client
+
+
+@pytest.fixture
+def s3_config():
+    """Test S3 configuration."""
+    return S3Config(
+        bucket="test-bucket",
+        folder="templates/",
+        report_folder="reports/",
+        access_key_id="test-key",
+        secret_access_key="test-secret",
+        region="us-east-1",
+    )

@@ -22,24 +22,55 @@ class ReportGenerator:
 
         self._reader = reader or WorkbookReader()
 
-    def build_dataframe(self, template: TemplateDefinition | TemplateDraft) -> pd.DataFrame:
+    def build_dataframe(
+        self, template: TemplateDefinition | TemplateDraft
+    ) -> pd.DataFrame:
         """Build the output DataFrame defined by a template.
 
         Args:
             template: Template definition describing sources and mappings.
         """
 
-        definition = template.to_definition() if isinstance(template, TemplateDraft) else template
+        if isinstance(template, TemplateDraft):
+            draft = template
+            cache = {
+                source.key: self._reader.read_frame(source) for source in draft.sources
+            }
+            output = {}
+            row_count = max((len(df) for df in cache.values()), default=0)
+            for field in draft.destination_fields:
+                mapping = next(
+                    (
+                        m
+                        for m in draft.mappings
+                        if m.destination_field == field.name and m.is_complete
+                    ),
+                    None,
+                )
+                if mapping and mapping.source_key in cache:
+                    source_frame = cache[mapping.source_key]
+                    if mapping.source_column in source_frame.columns:
+                        output[field.name] = source_frame[mapping.source_column]
+                    else:
+                        output[field.name] = pd.Series([None] * row_count, dtype=object)
+                else:
+                    output[field.name] = pd.Series([None] * row_count, dtype=object)
+            return pd.DataFrame(output)
+
+        definition = template
         cache = {
-            source.key: self._reader.read_frame(source)
-            for source in definition.sources
+            source.key: self._reader.read_frame(source) for source in definition.sources
         }
         output = {}
         for mapping in definition.mappings:
-            output[mapping.destination_field] = self._mapped_series(cache, definition, mapping)
+            output[mapping.destination_field] = self._mapped_series(
+                cache, definition, mapping
+            )
         return pd.DataFrame(output)
 
-    def build_review_dataframe(self, template: TemplateDefinition | TemplateDraft) -> pd.DataFrame:
+    def build_review_dataframe(
+        self, template: TemplateDefinition | TemplateDraft
+    ) -> pd.DataFrame:
         """Build review rows using only completed mappings from a draft.
 
         Args:
@@ -51,11 +82,15 @@ class ReportGenerator:
         mappings = [mapping for mapping in template.mappings if mapping.is_complete]
         if not mappings:
             raise ValueError("At least one field must be mapped to generate a review.")
-        cache = {source.key: self._reader.read_frame(source) for source in template.sources}
+        cache = {
+            source.key: self._reader.read_frame(source) for source in template.sources
+        }
         source_map = {source.key: source for source in template.sources}
         output = {}
         for mapping in mappings:
-            output[mapping.destination_field] = self._mapped_series(cache, type("DraftView", (), {"source_map": source_map})(), mapping)
+            output[mapping.destination_field] = self._mapped_series(
+                cache, type("DraftView", (), {"source_map": source_map})(), mapping
+            )
         return pd.DataFrame(output)
 
     def export(
@@ -70,14 +105,21 @@ class ReportGenerator:
             output_path: Optional destination override for the exported workbook.
         """
 
-        definition = template.to_definition() if isinstance(template, TemplateDraft) else template
-        destination = Path(output_path or definition.output_file).expanduser()
+        if isinstance(template, TemplateDefinition):
+            output_file = template.output_file
+            frame = self.build_dataframe(template)
+        else:
+            output_file = template.output_file
+            frame = self.build_dataframe(template)
+
+        destination = Path(output_path or output_file).expanduser()
         destination.parent.mkdir(parents=True, exist_ok=True)
-        frame = self.build_dataframe(definition)
         frame.to_excel(destination, index=False)
         return destination
 
-    def _mapped_series(self, cache: dict[str, pd.DataFrame], template, mapping) -> pd.Series:
+    def _mapped_series(
+        self, cache: dict[str, pd.DataFrame], template, mapping
+    ) -> pd.Series:
         source_frame = cache[mapping.source_key]
         if mapping.source_column not in source_frame.columns:
             message = (
