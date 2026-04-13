@@ -23,6 +23,7 @@ class S3TemplateSelectDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self._items = items
+        self._selected_item = None
         self.setWindowTitle(title)
         self.setMinimumSize(500, 400)
         self._setup_ui()
@@ -44,6 +45,7 @@ class S3TemplateSelectDialog(QDialog):
         self._tree.setHeaderLabels(["Name"])
         self._tree.setSelectionMode(QTreeWidget.SelectionMode.SingleSelection)
         self._tree.setAlternatingRowColors(True)
+        self._tree.setCursor(Qt.CursorShape.PointingHandCursor)
         layout.addWidget(self._tree)
 
         self._build_tree()
@@ -51,9 +53,27 @@ class S3TemplateSelectDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.accepted.connect(self.accept)
+        self._ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        buttons.accepted.connect(self._on_ok_clicked)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def _on_ok_clicked(self) -> None:
+        """Store selection when OK is clicked."""
+        item = self._tree.currentItem()
+        if item is None:
+            selected = self._tree.selectedItems()
+            if selected:
+                item = selected[0]
+
+        if item:
+            data = item.data(0, Qt.ItemDataRole.UserRole)
+            if data:
+                if data.get("version") is None and item.childCount() > 0:
+                    first_child = item.child(0)
+                    data = first_child.data(0, Qt.ItemDataRole.UserRole)
+                self._selected_item = data
+        self.accept()
 
     def _build_tree(self, filter_text: str = "") -> None:
         self._tree.clear()
@@ -80,12 +100,28 @@ class S3TemplateSelectDialog(QDialog):
 
         self._tree.itemClicked.connect(self._on_item_clicked)
         self._tree.itemActivated.connect(self._on_item_clicked)
+        self._tree.currentItemChanged.connect(self._on_current_item_changed)
+
+    def _on_current_item_changed(
+        self, current: QTreeWidgetItem, previous: QTreeWidgetItem
+    ) -> None:
+        """Handle tree selection change."""
+        if current:
+            data = current.data(0, Qt.ItemDataRole.UserRole)
+            if data:
+                self._selected_item = data
+                if data.get("version") is None and current.childCount() > 0:
+                    first_child = current.child(0)
+                    child_data = first_child.data(0, Qt.ItemDataRole.UserRole)
+                    if child_data:
+                        self._selected_item = child_data
 
     def _on_search_changed(self, text: str) -> None:
         self._build_tree(text)
 
     def _on_item_clicked(self, item: QTreeWidgetItem, column: int) -> None:
         data = item.data(0, Qt.ItemDataRole.UserRole)
+        print("Item clicked:", data)
         if data:
             self._selected_item = data
             if data.get("version") is None:
@@ -97,7 +133,8 @@ class S3TemplateSelectDialog(QDialog):
 
     def selected_template_version(self) -> tuple[str, str] | None:
         """Return (template_name, version) tuple for selected template version."""
-        if hasattr(self, "_selected_item") and self._selected_item:
+        print("Selected item in dialog:", self._selected_item)
+        if self._selected_item:
             name = self._selected_item.get("name", "")
             version = self._selected_item.get("version")
             if name and version:

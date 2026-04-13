@@ -1,0 +1,302 @@
+{
+  "template_name": "TestGene",
+  "output_file": "output.xlsx",
+  "destination_fields": [
+    {
+      "name": "Property"
+    },
+    {
+      "name": "Name"
+    },
+    {
+      "name": "HOH Name (3b)"
+    },
+    {
+      "name": "HOH SSN (3n)"
+    },
+    {
+      "name": "Tenant"
+    },
+    {
+      "name": "Status"
+    },
+    {
+      "name": "Utility Allowance (11m)"
+    },
+    {
+      "name": "Utility Schedule"
+    },
+    {
+      "name": "Current Action (2a)"
+    },
+    {
+      "name": "Effective Date (2b)"
+    },
+    {
+      "name": "electric"
+    },
+    {
+      "name": "water"
+    },
+    {
+      "name": "sewer"
+    },
+    {
+      "name": "trash"
+    },
+    {
+      "name": "ht_bgas"
+    },
+    {
+      "name": "ht_ngas"
+    },
+    {
+      "name": "ht_elec"
+    },
+    {
+      "name": "ck_bgas"
+    },
+    {
+      "name": "ck_ngas"
+    },
+    {
+      "name": "ck_elec"
+    },
+    {
+      "name": "wh_ngas"
+    },
+    {
+      "name": "wh_bgas"
+    },
+    {
+      "name": "wh_elec"
+    },
+    {
+      "name": "range"
+    },
+    {
+      "name": "fridge"
+    },
+    {
+      "name": "ac"
+    },
+    {
+      "name": "gas_ck"
+    },
+    {
+      "name": "el_other"
+    },
+    {
+      "name": "gas_wh"
+    },
+    {
+      "name": "gas_sh"
+    },
+    {
+      "name": "el_ac"
+    },
+    {
+      "name": "no_use"
+    },
+    {
+      "name": "uha_elec"
+    },
+    {
+      "name": "uha_gas"
+    }
+  ],
+  "sources": [
+    {
+      "key": "ProgramsTab",
+      "file_path": "C:\\bob\\templates\\Elite\\HousingPro\\ProgramsTab.xlsx",
+      "sheet_name": null
+    },
+    {
+      "key": "TenantDetail",
+      "file_path": "C:\\bob\\templates\\Elite\\HousingPro\\TenantDetail.xlsx",
+      "sheet_name": null
+    },
+    {
+      "key": "UnitsTab",
+      "file_path": "C:\\bob\\templates\\Elite\\HousingPro\\UnitsTab.xlsx",
+      "sheet_name": null
+    },
+    {
+      "key": "MembersTab_-_1",
+      "file_path": "C:\\bob\\templates\\Elite\\HousingPro\\MembersTab - 1.xlsx",
+      "sheet_name": null
+    }
+  ],
+  "mappings": [
+    {
+      "destination_field": "Property",
+      "source_key": "TenantDetail",
+      "source_column": "Increment by Increment Key::Number"
+    },
+    {
+      "destination_field": "Name",
+      "source_key": "TenantDetail",
+      "source_column": "Increment by Increment Key::Name"
+    },
+    {
+      "destination_field": "HOH Name (3b)",
+      "source_key": "TenantDetail",
+      "source_column": "Member by Tenant Key Head Only::Member Name Full MI Only"
+    },
+    {
+      "destination_field": "HOH SSN (3n)",
+      "source_key": "MembersTab_-_1",
+      "source_column": "Members by Tenant Key::Member SSN"
+    },
+    {
+      "destination_field": "Tenant",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "Status",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "Utility Allowance (11m)",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "Utility Schedule",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "Current Action (2a)",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "Effective Date (2b)",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "electric",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "water",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "sewer",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "trash",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "ht_bgas",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "ht_ngas",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "ht_elec",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "ck_bgas",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "ck_ngas",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "ck_elec",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "wh_ngas",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "wh_bgas",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "wh_elec",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "range",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "fridge",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "ac",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "gas_ck",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "el_other",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "gas_wh",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "gas_sh",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "el_ac",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "no_use",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "uha_elec",
+      "source_key": null,
+      "source_column": null
+    },
+    {
+      "destination_field": "uha_gas",
+      "source_key": null,
+      "source_column": null
+    }
+  ]
+}

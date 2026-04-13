@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import os
 
+from pydantic import ValidationError
 from PyQt6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
 from report_convertor.components.s3_source_select_dialog import S3SourceSelectDialog
@@ -40,6 +41,17 @@ class TemplateEditorController:
         self._editor.template_path_input.clear()
         self._editor.summary_label.setText(self._editor.summary())
         self._editor.show_status("Started a new template draft.")
+
+    def clear_draft(self) -> None:
+        reply = QMessageBox.question(
+            self._editor,
+            "Clear",
+            "Clear all current editor data?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.new_draft()
 
     def browse_template_source(self) -> None:
         source, ok = QInputDialog.getItem(
@@ -80,6 +92,7 @@ class TemplateEditorController:
             dialog = S3TemplateSelectDialog(self._editor, items)
             if dialog.exec():
                 selected = dialog.selected_template_version()
+                print("Selected from S3 dialog:", selected)
                 if selected:
                     name, version = selected
                     draft = self._s3_repo.load_template(name, version)
@@ -202,7 +215,7 @@ class TemplateEditorController:
             )
 
     def remove_destination_field(self) -> None:
-        if self._editor.destination_fields.remove_selected():
+        if self._editor.destination_fields.remove_selected_all():
             self._editor.sync_editor()
 
     def add_source_file(self) -> None:
@@ -223,6 +236,7 @@ class TemplateEditorController:
                 if not selected:
                     return
                 for folder, file, key in selected:
+                    print("Selected file:", folder, file, key)
                     local_path = self._s3_report_repo.download_report(key)
                     self._append_source(str(local_path))
                 self._editor.show_status(f"Loaded {len(selected)} report(s) from S3")
@@ -249,6 +263,22 @@ class TemplateEditorController:
             self._editor.sync_editor()
 
     def save_template(self) -> None:
+        location, accepted = QInputDialog.getItem(
+            self._editor,
+            "Save Template",
+            "Where would you like to save the template?",
+            ["Local File", "Amazon S3"],
+            0,
+            False,
+        )
+        if not accepted:
+            return
+        if location == "Amazon S3":
+            self._save_template_to_s3()
+        else:
+            self._save_template_local()
+
+    def _save_template_local(self) -> None:
         def action() -> None:
             draft = self._editor.compose_draft(require_name=True)
             destination = self._service.save_template(draft, self._editor.templates_dir)
@@ -258,7 +288,7 @@ class TemplateEditorController:
 
         self._run_action(action)
 
-    def save_template_to_s3(self) -> None:
+    def _save_template_to_s3(self) -> None:
         def action() -> None:
             draft = self._editor.compose_draft(require_name=True)
             key = self._s3_repo.save_template(draft)
@@ -267,6 +297,9 @@ class TemplateEditorController:
             self._editor.show_status(f"Saved template to S3: {key}")
 
         self._run_action(action)
+
+    def save_template_to_s3(self) -> None:
+        self._save_template_to_s3()
 
     def load_template_from_s3(self) -> None:
         def action() -> None:
@@ -369,7 +402,7 @@ class TemplateEditorController:
             action()
             if success_message:
                 self._editor.show_status(success_message)
-        except (FileNotFoundError, ValueError, OSError) as error:
+        except (FileNotFoundError, ValueError, OSError, ValidationError) as error:
             self._error(str(error))
 
     def _error(self, message: str) -> None:

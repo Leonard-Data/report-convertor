@@ -15,8 +15,12 @@ class MockEditor:
     """Mock editor for testing controller."""
 
     def __init__(self):
+        self._template_name = "test-template"
         self.template_name_input = MagicMock()
-        self.template_name_input.text.return_value = "test-template"
+        self.template_name_input.text.side_effect = lambda: self._template_name
+        self.template_name_input.setText.side_effect = (
+            lambda v: setattr(self, "_template_name", v)
+        )
         self.template_path_input = MagicMock()
         self.template_path_input.text.return_value = ""
         self.source_from_s3_checkbox = MagicMock()
@@ -32,10 +36,20 @@ class MockEditor:
         self._show_status = MagicMock()
         self._load_draft_mock = MagicMock()
         self.refresh_versions = MagicMock()
+        self.sync_editor = MagicMock()
 
     def load_draft(self, draft):
         self._loaded_draft = draft
         self._load_draft_mock(draft)
+
+    def compose_draft(self, require_name: bool) -> TemplateDraft:
+        name = self.template_name_input.text().strip()
+        if require_name and not name:
+            raise ValueError("Template name is required.")
+        return TemplateDraft(
+            template_name=name or "draft-template",
+            output_file="output.xlsx",
+        )
 
     @property
     def show_status(self):
@@ -303,7 +317,7 @@ class TestPushTemplateToS3:
     def test_push_template_to_s3_prompts_for_name_if_empty(self, mock_boto):
         """Prompts for template name if name input is empty."""
         editor = MockEditor()
-        editor.template_name_input.text.return_value = ""
+        editor._template_name = ""
         controller = TemplateEditorController(editor)
 
         mock_s3_repo = MagicMock()
@@ -331,7 +345,7 @@ class TestPushTemplateToS3:
     def test_push_template_to_s3_increments_version(self, mock_boto):
         """Automatically increments version when template exists."""
         editor = MockEditor()
-        editor.template_name_input.text.return_value = "existing-template"
+        editor._template_name = "existing-template"
         controller = TemplateEditorController(editor)
 
         mock_s3_repo = MagicMock()
@@ -390,20 +404,26 @@ class TestAddSourceFromS3:
         controller = TemplateEditorController(editor)
 
         mock_report_repo = MagicMock()
-        mock_report_repo.list_reports.return_value = ["report1.xlsx", "report2.xlsx"]
+        mock_report_repo.list_reports_with_folders.return_value = [
+            {"folder": "FolderA", "file": "report1.xlsx", "key": "FolderA/report1.xlsx"}
+        ]
         mock_report_repo.download_report.return_value = Path("/cache/report1.xlsx")
         controller._s3_report_repo = mock_report_repo
 
-        editor.sources.add_source = MagicMock()
-        controller._reader = MagicMock()
+        mock_dialog = MagicMock()
+        mock_dialog.exec.return_value = True
+        mock_dialog.selected_files.return_value = [
+            ("FolderA", "report1.xlsx", "FolderA/report1.xlsx")
+        ]
 
         with (
-            patch("PyQt6.QtWidgets.QInputDialog.getItem") as mock_dialog,
+            patch(
+                "report_convertor.components.template_editor_controller.S3SourceSelectDialog",
+                return_value=mock_dialog,
+            ),
             patch.object(controller, "_run_action") as mock_run,
-            patch.object(controller, "_append_source"),
+            patch.object(controller, "_append_source") as mock_append,
         ):
-            mock_dialog.return_value = ("report1.xlsx", True)
-
             def capture_action(action):
                 action()
 
@@ -411,7 +431,8 @@ class TestAddSourceFromS3:
 
             controller._add_source_from_s3()
 
-        mock_report_repo.download_report.assert_called_once_with("report1.xlsx")
+        mock_report_repo.download_report.assert_called_once_with("FolderA/report1.xlsx")
+        mock_append.assert_called_once_with(str(Path("/cache/report1.xlsx")))
 
     @patch("boto3.client")
     def test_add_source_from_s3_no_reports(self, mock_boto):
@@ -420,15 +441,10 @@ class TestAddSourceFromS3:
         controller = TemplateEditorController(editor)
 
         mock_report_repo = MagicMock()
-        mock_report_repo.list_reports.return_value = []
+        mock_report_repo.list_reports_with_folders.return_value = []
         controller._s3_report_repo = mock_report_repo
 
-        with (
-            patch("PyQt6.QtWidgets.QInputDialog.getItem") as mock_dialog,
-            patch.object(controller, "_run_action") as mock_run,
-        ):
-            mock_dialog.return_value = ("", False)
-
+        with patch.object(controller, "_run_action") as mock_run:
             def capture_action(action):
                 with pytest.raises(ValueError, match="No reports found"):
                     action()
@@ -436,3 +452,126 @@ class TestAddSourceFromS3:
             mock_run.side_effect = capture_action
 
             controller._add_source_from_s3()
+
+
+class TestClearDraft:
+    """Tests for clear_draft method."""
+
+    def test_clear_draft_confirmed_calls_new_draft(self):
+        """When user confirms, new_draft is called."""
+        editor = MockEditor()
+        controller = TemplateEditorController(editor)
+
+        with (
+            patch("PyQt6.QtWidgets.QMessageBox.question") as mock_q,
+            patch.object(controller, "new_draft") as mock_new,
+        ):
+            from PyQt6.QtWidgets import QMessageBox
+            mock_q.return_value = QMessageBox.StandardButton.Yes
+            controller.clear_draft()
+
+        mock_new.assert_called_once()
+
+    def test_clear_draft_cancelled_does_not_call_new_draft(self):
+        """When user cancels, new_draft is not called."""
+        editor = MockEditor()
+        controller = TemplateEditorController(editor)
+
+        with (
+            patch("PyQt6.QtWidgets.QMessageBox.question") as mock_q,
+            patch.object(controller, "new_draft") as mock_new,
+        ):
+            from PyQt6.QtWidgets import QMessageBox
+            mock_q.return_value = QMessageBox.StandardButton.No
+            controller.clear_draft()
+
+        mock_new.assert_not_called()
+
+
+class TestBulkDeleteDestinationFields:
+    """Tests for bulk delete destination fields via remove_selected_all."""
+
+    def test_remove_destination_field_calls_remove_selected_all(self):
+        """Controller calls remove_selected_all (not remove_selected)."""
+        editor = MockEditor()
+        editor.sync_editor = MagicMock()
+        controller = TemplateEditorController(editor)
+
+        editor.destination_fields.remove_selected_all.return_value = ["FieldA", "FieldB"]
+        controller.remove_destination_field()
+        editor.destination_fields.remove_selected_all.assert_called_once()
+
+    def test_remove_destination_field_syncs_when_items_removed(self):
+        """sync_editor is called after successful bulk removal."""
+        editor = MockEditor()
+        editor.sync_editor = MagicMock()
+        controller = TemplateEditorController(editor)
+
+        editor.destination_fields.remove_selected_all.return_value = ["FieldA"]
+        controller.remove_destination_field()
+        editor.sync_editor.assert_called_once()
+
+    def test_remove_destination_field_no_sync_when_empty(self):
+        """sync_editor is NOT called when nothing was selected."""
+        editor = MockEditor()
+        editor.sync_editor = MagicMock()
+        controller = TemplateEditorController(editor)
+
+        editor.destination_fields.remove_selected_all.return_value = []
+        controller.remove_destination_field()
+        editor.sync_editor.assert_not_called()
+
+
+class TestSaveTemplateDialog:
+    """Tests for save_template method with location dialog."""
+
+    @patch("boto3.client")
+    def test_save_template_local_calls_local_save(self, mock_boto):
+        """Choosing 'Local File' calls _save_template_local."""
+        editor = MockEditor()
+        controller = TemplateEditorController(editor)
+
+        with (
+            patch("PyQt6.QtWidgets.QInputDialog.getItem") as mock_dialog,
+            patch.object(controller, "_save_template_local") as mock_local,
+            patch.object(controller, "_save_template_to_s3") as mock_s3,
+        ):
+            mock_dialog.return_value = ("Local File", True)
+            controller.save_template()
+
+        mock_local.assert_called_once()
+        mock_s3.assert_not_called()
+
+    @patch("boto3.client")
+    def test_save_template_s3_calls_s3_save(self, mock_boto):
+        """Choosing 'Amazon S3' calls _save_template_to_s3."""
+        editor = MockEditor()
+        controller = TemplateEditorController(editor)
+
+        with (
+            patch("PyQt6.QtWidgets.QInputDialog.getItem") as mock_dialog,
+            patch.object(controller, "_save_template_local") as mock_local,
+            patch.object(controller, "_save_template_to_s3") as mock_s3,
+        ):
+            mock_dialog.return_value = ("Amazon S3", True)
+            controller.save_template()
+
+        mock_s3.assert_called_once()
+        mock_local.assert_not_called()
+
+    @patch("boto3.client")
+    def test_save_template_cancelled_calls_neither(self, mock_boto):
+        """Cancelling the dialog calls neither save method."""
+        editor = MockEditor()
+        controller = TemplateEditorController(editor)
+
+        with (
+            patch("PyQt6.QtWidgets.QInputDialog.getItem") as mock_dialog,
+            patch.object(controller, "_save_template_local") as mock_local,
+            patch.object(controller, "_save_template_to_s3") as mock_s3,
+        ):
+            mock_dialog.return_value = ("Local File", False)
+            controller.save_template()
+
+        mock_local.assert_not_called()
+        mock_s3.assert_not_called()

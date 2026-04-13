@@ -79,6 +79,9 @@ class S3SourceSelectDialog(QDialog):
                 parent = self._tree
 
             file_item = QTreeWidgetItem(parent, [filename])
+            file_item.setFlags(
+                file_item.flags() | Qt.ItemFlag.ItemIsUserCheckable
+            )
             file_item.setCheckState(0, Qt.CheckState.Unchecked)
             file_item.setData(
                 0,
@@ -105,16 +108,17 @@ class S3SourceSelectDialog(QDialog):
                 filename = data.get("file", "")
                 if key and item.checkState(0) == Qt.CheckState.Checked:
                     selected.append((folder, filename, key))
+        print("Selected files from dialog:", selected)
         return selected
 
 
 class QTreeWidgetItemIterator:
-    """Iterator for QTreeWidget items."""
+    """Iterator for QTreeWidget items (depth-first, all top-level items)."""
 
     def __init__(self, tree: QTreeWidget) -> None:
-        self._stack = []
-        if tree.topLevelItemCount() > 0:
-            self._stack.append(tree.topLevelItem(0))
+        self._stack = [
+            tree.topLevelItem(i) for i in range(tree.topLevelItemCount())
+        ]
 
     def __iter__(self):
         return self

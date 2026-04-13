@@ -126,6 +126,7 @@ class TemplateEditorWidget(QWidget):
         actions.addWidget(self.preview_rows_input)
         actions.addStretch(1)
         for text, handler in [
+            ("Clear", self._controller.clear_draft),
             ("Save Template", self._controller.save_template),
             ("Push to S3", self._controller.push_template_to_s3),
             ("Preview", self._controller.preview_template),
@@ -230,9 +231,10 @@ class TemplateEditorWidget(QWidget):
         self.schedule_review_refresh()
 
     def compose_draft(self, require_name: bool) -> TemplateDraft:
-        name = self.template_name_input.text().strip() or (
-            "draft-template" if not require_name else ""
-        )
+        name = self.template_name_input.text().strip()
+        if require_name and not name:
+            raise ValueError("Template name is required. Please enter a name before generating.")
+        name = name or "draft-template"
         names = self.destination_fields.field_names()
         sources = self.sources.sources()
         mappings = normalize_mappings(

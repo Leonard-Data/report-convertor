@@ -24,9 +24,9 @@ class TestListTemplates:
         mock_client = MagicMock()
         mock_client.list_objects_v2.return_value = {
             "Contents": [
-                {"Key": "reports/template2.json"},
-                {"Key": "reports/template1.json"},
-                {"Key": "reports/readme.txt"},
+                {"Key": "templates/template2_v1.json"},
+                {"Key": "templates/template1_v1.json"},
+                {"Key": "templates/readme.txt"},
             ]
         }
 
@@ -35,6 +35,23 @@ class TestListTemplates:
             result = repo.list_templates()
 
         assert result == ["template1", "template2"]
+
+    def test_list_templates_extracts_base_name_from_versioned_files(self, s3_config):
+        """Versioned files like name_0.0.0.1.json return only the base name."""
+        mock_client = MagicMock()
+        mock_client.list_objects_v2.return_value = {
+            "Contents": [
+                {"Key": "templates/TestGenerate_0.0.0.1.json"},
+                {"Key": "templates/TestGenerate_0.0.0.2.json"},
+                {"Key": "templates/SampleTemplate_v2.json"},
+            ]
+        }
+
+        with patch("boto3.client", return_value=mock_client):
+            repo = S3TemplateRepository(s3_config)
+            result = repo.list_templates()
+
+        assert result == ["SampleTemplate", "TestGenerate"]
 
     def test_list_templates_empty_bucket_returns_empty_list(self, s3_config):
         """No objects returns empty list."""
@@ -118,7 +135,7 @@ class TestSaveTemplate:
         mock_client.put_object.assert_called_once()
         call_kwargs = mock_client.put_object.call_args.kwargs
         assert "v1" in call_kwargs["Key"]
-        assert key == f"reports/test-template_v1.json"
+        assert key == "templates/test-template_v1.json"
 
     def test_save_template_without_version(self, s3_config, sample_template):
         """Saves with timestamp."""
@@ -141,20 +158,20 @@ class TestSaveTemplate:
             repo = S3TemplateRepository(s3_config)
             key = repo.save_template(sample_template, version="v2")
 
-        assert key == "reports/test-template_v2.json"
+        assert key == "templates/test-template_v2.json"
 
 
 class TestListVersions:
     """Tests for list_versions method."""
 
     def test_list_versions_returns_sorted(self, s3_config):
-        """Returns sorted version list."""
+        """Returns sorted version list with only the version suffix."""
         mock_client = MagicMock()
         mock_client.list_objects_v2.return_value = {
             "Contents": [
-                {"Key": "reports/test-template_v2.json"},
-                {"Key": "reports/test-template_v1.json"},
-                {"Key": "reports/test-template_20240415_143022.json"},
+                {"Key": "templates/test-template_v2.json"},
+                {"Key": "templates/test-template_v1.json"},
+                {"Key": "templates/test-template_20240415_143022.json"},
             ]
         }
 
@@ -164,6 +181,27 @@ class TestListVersions:
 
         assert result == sorted(result)
         assert len(result) == 3
+        assert "v1" in result
+        assert "v2" in result
+        assert "20240415_143022" in result
+        # Must not contain the template name prefix
+        assert all("test-template" not in v for v in result)
+
+    def test_list_versions_dotted_version(self, s3_config):
+        """Dotted version like 0.0.0.1 is extracted correctly."""
+        mock_client = MagicMock()
+        mock_client.list_objects_v2.return_value = {
+            "Contents": [
+                {"Key": "templates/TestGenerate_0.0.0.1.json"},
+                {"Key": "templates/TestGenerate_0.0.0.2.json"},
+            ]
+        }
+
+        with patch("boto3.client", return_value=mock_client):
+            repo = S3TemplateRepository(s3_config)
+            result = repo.list_versions("TestGenerate")
+
+        assert result == ["0.0.0.1", "0.0.0.2"]
 
     def test_list_versions_empty_returns_empty(self, s3_config):
         """No versions returns empty list."""

@@ -48,7 +48,12 @@ class S3TemplateRepository:
         )
 
     def list_templates(self) -> list[str]:
-        """Return template names available in S3."""
+        """Return unique template base names available in S3.
+
+        Files are stored as ``{name}_{version}.json``. This method extracts the
+        base name (everything before the last ``_``) so that versioned files are
+        grouped under a single template entry.
+        """
         try:
             response = self._client.list_objects_v2(
                 Bucket=self._config.bucket,
@@ -57,13 +62,14 @@ class S3TemplateRepository:
         except ClientError:
             return []
 
-        keys = []
+        names: set[str] = set()
         for obj in response.get("Contents", []):
             key = obj.get("Key", "")
             if key.endswith(".json"):
-                name = key[len(self._config.folder) : -5]
-                keys.append(name)
-        return sorted(keys)
+                filename = key[len(self._config.folder) : -5]  # strip folder + .json
+                base = filename.rsplit("_", 1)[0] if "_" in filename else filename
+                names.add(base)
+        return sorted(names)
 
     def load_template(
         self, identifier: str, version: str | None = None
@@ -114,7 +120,9 @@ class S3TemplateRepository:
     def list_versions(self, template_name: str) -> list[str]:
         """List available versions for a template.
 
-        Returns version identifiers (e.g., ["v1", "v2", "20240415_143022"]).
+        Returns version identifiers (e.g., ["v1", "v2", "0.0.0.1"]).
+        Files follow the ``{template_name}_{version}.json`` convention; only
+        the version suffix is returned.
         """
         prefix = self._config.full_key(f"{template_name}_")
         response = self._client.list_objects_v2(
@@ -122,12 +130,16 @@ class S3TemplateRepository:
             Prefix=prefix,
         )
 
+        template_prefix = f"{template_name}_"
         versions = []
-        folder_len = len(self._config.folder)
         for obj in response.get("Contents", []):
-            key = obj.get("Key", "")[folder_len:]
+            key = obj.get("Key", "")
             if key.endswith(".json"):
-                versions.append(key[:-5])
+                filename = key[len(self._config.folder) :]  # strip folder prefix
+                if filename.startswith(template_prefix):
+                    version = filename[len(template_prefix) : -5]  # strip name_ + .json
+                    if version:
+                        versions.append(version)
         return sorted(versions)
 
     def get_client(self):

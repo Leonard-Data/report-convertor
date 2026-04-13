@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtWidgets import QListWidget, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QAbstractItemView, QListWidget, QVBoxLayout, QWidget
 
 
 class DestinationFieldsWidget(QWidget):
@@ -11,6 +11,7 @@ class DestinationFieldsWidget(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self._list = QListWidget()
+        self._list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         layout = QVBoxLayout()
         layout.addWidget(self._list)
         self.setLayout(layout)
@@ -32,10 +33,22 @@ class DestinationFieldsWidget(QWidget):
         self._list.addItem(name)
 
     def remove_selected(self) -> str | None:
-        """Remove and return the selected destination field."""
+        """Remove and return the selected destination field (single selection)."""
 
         row = self._list.currentRow()
         if row < 0:
             return None
         item = self._list.takeItem(row)
         return item.text()
+
+    def remove_selected_all(self) -> list[str]:
+        """Remove all selected destination fields and return their names."""
+
+        selected = self._list.selectedItems()
+        if not selected:
+            return []
+        removed = []
+        for item in selected:
+            removed.append(item.text())
+            self._list.takeItem(self._list.row(item))
+        return removed
