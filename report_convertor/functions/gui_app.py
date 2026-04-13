@@ -21,6 +21,16 @@ def run_gui(templates_dir: Path) -> int:
 
     app = QApplication(sys.argv)
     app.setApplicationName("Report Convertor")
+
+    _apply_stylesheet(app)
+
     window = MainWindow(templates_dir)
     window.show()
     return app.exec()
+
+
+def _apply_stylesheet(app) -> None:
+    """Load and apply the dark QSS theme."""
+    qss_path = Path(__file__).parent.parent / "resources" / "style.qss"
+    if qss_path.exists():
+        app.setStyleSheet(qss_path.read_text(encoding="utf-8"))
