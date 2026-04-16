@@ -31,19 +31,31 @@ class S3Config:
     def from_env(cls, env_path: Path | None = None) -> S3Config:
         """Load S3 configuration from .env file.
 
-        When running as a PyInstaller frozen executable, looks for .env
-        next to the exe. In development, uses standard dotenv search.
+        Search order:
+        1. Explicit path (if provided)
+        2. Next to the executable (frozen mode)
+        3. Current working directory
+        4. Standard dotenv search (walks up from CWD)
         """
         import sys
 
         if env_path:
-            load_dotenv(env_path)
-        elif getattr(sys, "frozen", False):
-            # Frozen exe: look for .env in the same directory as the executable
-            exe_env = Path(sys.executable).parent / ".env"
-            load_dotenv(exe_env)
+            load_dotenv(env_path, override=True)
         else:
-            load_dotenv()
+            candidates = []
+            if getattr(sys, "frozen", False):
+                candidates.append(Path(sys.executable).parent / ".env")
+            candidates.append(Path.cwd() / ".env")
+
+            loaded = False
+            for candidate in candidates:
+                if candidate.exists():
+                    load_dotenv(candidate, override=True)
+                    loaded = True
+                    break
+
+            if not loaded:
+                load_dotenv(override=True)  # walk up from CWD
 
         def _require(key: str) -> str:
             value = os_env(key)

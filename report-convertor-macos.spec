@@ -13,8 +13,6 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        # App resources
-        ('report_convertor/resources/style.qss', 'report_convertor/resources'),
         # boto3/botocore endpoint + service data (required at runtime)
         (boto3_data,    'boto3/data'),
         (botocore_data, 'botocore/data'),
