@@ -14,4 +14,4 @@ def default_templates_dir() -> Path:
 def default_download_dir() -> Path:
     """Return the default output directory for generated reports."""
 
-    return Path("C:/bob/templates")
+    return Path("C:/bob/download")

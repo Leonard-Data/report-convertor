@@ -26,7 +26,7 @@ class ReportStorage(Protocol):
 class S3ReportRepository:
     """List and download reports from S3 with local caching."""
 
-    CACHE_DIR = Path("C:/bob/templates")
+    CACHE_DIR = Path("C:/bob/sources")
 
     def __init__(self, config: S3Config | None = None) -> None:
         """Create an S3 report repository.
@@ -55,26 +55,43 @@ class S3ReportRepository:
         Returns:
             List of dicts with 'folder', 'file', and 'key' for each report.
         """
+        result = []
+        prefix_len = len(self._config.report_folder)
+        continuation_token = None
+
         try:
-            response = self._client.list_objects_v2(
-                Bucket=self._config.bucket,
-                Prefix=self._config.report_folder,
-            )
+            while True:
+                if continuation_token:
+                    response = self._client.list_objects_v2(
+                        Bucket=self._config.bucket,
+                        Prefix=self._config.report_folder,
+                        ContinuationToken=continuation_token,
+                    )
+                else:
+                    response = self._client.list_objects_v2(
+                        Bucket=self._config.bucket,
+                        Prefix=self._config.report_folder,
+                    )
+
+                for obj in response.get("Contents", []):
+                    key = obj.get("Key", "")
+                    if not key or key.endswith("/"):
+                        continue
+                    relative = key[prefix_len:]
+                    if "/" in relative:
+                        folder, filename = relative.split("/", 1)
+                        result.append(
+                            {"folder": folder, "file": filename, "key": relative}
+                        )
+                    else:
+                        result.append({"folder": "", "file": relative, "key": relative})
+
+                if not response.get("IsTruncated"):
+                    break
+                continuation_token = response.get("NextContinuationToken")
         except ClientError:
             return []
 
-        result = []
-        prefix_len = len(self._config.report_folder)
-        for obj in response.get("Contents", []):
-            key = obj.get("Key", "")
-            if not key or key.endswith("/"):
-                continue
-            relative = key[prefix_len:]
-            if "/" in relative:
-                folder, filename = relative.split("/", 1)
-                result.append({"folder": folder, "file": filename, "key": relative})
-            else:
-                result.append({"folder": "", "file": relative, "key": relative})
         return sorted(result, key=lambda x: (x["folder"], x["file"]))
 
     def download_report(self, filename: str) -> Path:

@@ -9,6 +9,153 @@ import pytest
 from report_convertor.features.storage.s3_report_repository import S3ReportRepository
 
 
+class TestListReportsWithFolders:
+    """Tests for list_reports_with_folders method."""
+
+    def test_list_reports_with_folders_returns_folder_structure(self, s3_config):
+        """Returns correct folder/file structure from S3 keys."""
+        mock_client = MagicMock()
+        mock_client.list_objects_v2.return_value = {
+            "Contents": [
+                {"Key": "reports/Q1/report.xlsx"},
+                {"Key": "reports/Q2/report.xlsx"},
+                {"Key": "reports/report.xlsx"},
+            ]
+        }
+
+        with patch("boto3.client", return_value=mock_client):
+            repo = S3ReportRepository(s3_config)
+            result = repo.list_reports_with_folders()
+
+        assert len(result) == 3
+        assert result[0] == {"folder": "", "file": "report.xlsx", "key": "report.xlsx"}
+        assert result[1] == {
+            "folder": "Q1",
+            "file": "report.xlsx",
+            "key": "Q1/report.xlsx",
+        }
+        assert result[2] == {
+            "folder": "Q2",
+            "file": "report.xlsx",
+            "key": "Q2/report.xlsx",
+        }
+
+    def test_list_reports_with_folders_excludes_folder_markers(self, s3_config):
+        """Keys ending with / are excluded as they are folder markers."""
+        mock_client = MagicMock()
+        mock_client.list_objects_v2.return_value = {
+            "Contents": [
+                {"Key": "reports/folder/"},
+                {"Key": "reports/folder/file.xlsx"},
+                {"Key": "reports/other/"},
+            ]
+        }
+
+        with patch("boto3.client", return_value=mock_client):
+            repo = S3ReportRepository(s3_config)
+            result = repo.list_reports_with_folders()
+
+        assert len(result) == 1
+        assert result[0] == {
+            "folder": "folder",
+            "file": "file.xlsx",
+            "key": "folder/file.xlsx",
+        }
+
+    def test_list_reports_with_folders_empty_bucket_returns_empty_list(self, s3_config):
+        """No objects returns empty list."""
+        mock_client = MagicMock()
+        mock_client.list_objects_v2.return_value = {}
+
+        with patch("boto3.client", return_value=mock_client):
+            repo = S3ReportRepository(s3_config)
+            result = repo.list_reports_with_folders()
+
+        assert result == []
+
+    def test_list_reports_with_folders_client_error_returns_empty_list(self, s3_config):
+        """ClientError gracefully returns empty list."""
+        from botocore.exceptions import ClientError
+
+        mock_client = MagicMock()
+        mock_client.list_objects_v2.side_effect = ClientError(
+            {"Error": {"Code": "500"}}, "ListObjectsV2"
+        )
+
+        with patch("boto3.client", return_value=mock_client):
+            repo = S3ReportRepository(s3_config)
+            result = repo.list_reports_with_folders()
+
+        assert result == []
+
+    def test_list_reports_with_folders_sorts_by_folder_then_file(self, s3_config):
+        """Results are sorted by folder then filename."""
+        mock_client = MagicMock()
+        mock_client.list_objects_v2.return_value = {
+            "Contents": [
+                {"Key": "reports/zebra/file.xlsx"},
+                {"Key": "reports/alpha/report.xlsx"},
+                {"Key": "reports/report.xlsx"},
+            ]
+        }
+
+        with patch("boto3.client", return_value=mock_client):
+            repo = S3ReportRepository(s3_config)
+            result = repo.list_reports_with_folders()
+
+        assert result[0]["file"] == "report.xlsx"
+        assert result[1]["folder"] == "alpha"
+        assert result[2]["folder"] == "zebra"
+
+    def test_list_reports_with_folders_handles_pagination(self, s3_config):
+        """Fetches all pages when IsTruncated is True."""
+        mock_client = MagicMock()
+        mock_client.list_objects_v2.side_effect = [
+            {
+                "Contents": [
+                    {"Key": "reports/folder1/file1.xlsx"},
+                    {"Key": "reports/folder1/file2.xlsx"},
+                ],
+                "IsTruncated": True,
+                "NextContinuationToken": "token_page2",
+            },
+            {
+                "Contents": [
+                    {"Key": "reports/folder2/file3.xlsx"},
+                ],
+                "IsTruncated": False,
+            },
+        ]
+
+        with patch("boto3.client", return_value=mock_client):
+            repo = S3ReportRepository(s3_config)
+            result = repo.list_reports_with_folders()
+
+        assert len(result) == 3
+        assert mock_client.list_objects_v2.call_count == 2
+
+    def test_list_reports_with_folders_files_in_root_folder(self, s3_config):
+        """Files in root prefix have empty folder."""
+        mock_client = MagicMock()
+        mock_client.list_objects_v2.return_value = {
+            "Contents": [
+                {"Key": "reports/root.xlsx"},
+                {"Key": "reports/nested/file.xlsx"},
+            ]
+        }
+
+        with patch("boto3.client", return_value=mock_client):
+            repo = S3ReportRepository(s3_config)
+            result = repo.list_reports_with_folders()
+
+        assert result[0] == {"folder": "", "file": "root.xlsx", "key": "root.xlsx"}
+        assert result[1] == {
+            "folder": "nested",
+            "file": "file.xlsx",
+            "key": "nested/file.xlsx",
+        }
+
+
 class TestListReports:
     """Tests for list_reports method."""
 
