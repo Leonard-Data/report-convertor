@@ -1,10 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
+# macOS build — produces a .app bundle (run on macOS only)
 
 import boto3
 import botocore
 from pathlib import Path
 
-boto3_data   = str(Path(boto3.__file__).parent   / "data")
+boto3_data    = str(Path(boto3.__file__).parent   / "data")
 botocore_data = str(Path(botocore.__file__).parent / "data")
 
 a = Analysis(
@@ -15,7 +16,7 @@ a = Analysis(
         # App resources
         ('report_convertor/resources/style.qss', 'report_convertor/resources'),
         # boto3/botocore endpoint + service data (required at runtime)
-        (boto3_data,   'boto3/data'),
+        (boto3_data,    'boto3/data'),
         (botocore_data, 'botocore/data'),
     ],
     hiddenimports=[
@@ -45,7 +46,7 @@ a = Analysis(
         'openpyxl.styles',
         'openpyxl.styles.fills',
         'openpyxl.reader.excel',
-        # dotenv — all submodules needed for frozen exe
+        # dotenv — submodules needed for frozen exe
         'dotenv',
         'dotenv.main',
         'dotenv.variables',
@@ -75,23 +76,45 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
+# macOS: exclude_binaries=True so COLLECT gathers them into the .app bundle
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='report-convertor',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
+    upx=False,          # UPX is not available / recommended on macOS
     console=True,
     disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
+    argv_emulation=False,  # must be False with PyQt6 — causes crash on macOS
+    target_arch=None,     # None = native arch; use 'universal2' for fat binary
     codesign_identity=None,
     entitlements_file=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='report-convertor',
+)
+
+app = BUNDLE(
+    coll,
+    name='report-convertor.app',
+    # Provide a .icns file here to set a custom dock / Finder icon, e.g.:
+    # icon='report_convertor/resources/icon.icns',
+    icon=None,
+    bundle_identifier='com.leonarddata.reportconvertor',
+    info_plist={
+        'NSHighResolutionCapable': True,
+        'NSPrincipalClass': 'NSApplication',
+        'CFBundleShortVersionString': '1.0.0',
+    },
 )

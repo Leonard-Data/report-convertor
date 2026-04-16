@@ -8,14 +8,50 @@ on:
       - '**/*.py'
       - 'pyproject.toml'
       - 'requirements*.txt'
+      - '*.spec'
 
 jobs:
-  build:
-    runs-on: windows-latest
-
+  # ── 1. Compute next version and push the tag ─────────────────────────────
+  version:
+    runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      new_version: ${{ steps.tag.outputs.new_version }}
+      tag_version: ${{ steps.tag.outputs.tag_version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      - name: Compute next patch version
+        id: tag
+        run: |
+          latest=$(git tag --sort=-v:refname | head -1)
+          if [ -n "$latest" ]; then
+            version="${latest#v}"
+            IFS='.' read -r major minor patch <<< "$version"
+            new_version="$major.$minor.$((patch + 1))"
+          else
+            new_version="0.1.0"
+          fi
+          echo "new_version=$new_version"   >> "$GITHUB_OUTPUT"
+          echo "tag_version=v$new_version"  >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.tag.outputs.tag_version }}
+          git push origin ${{ steps.tag.outputs.tag_version }}
+
+  # ── 2a. Windows build ────────────────────────────────────────────────────
+  build-windows:
+    needs: version
+    runs-on: windows-latest
+    permissions:
+      contents: write
     env:
       S3_BUCKET: ${{ secrets.S3_BUCKET }}
       S3_FOLDER: ${{ secrets.S3_FOLDER }}
@@ -23,12 +59,9 @@ jobs:
       S3_REGION: ${{ secrets.S3_REGION }}
       S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
       S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -43,44 +76,96 @@ jobs:
       - name: Run tests
         run: pytest
 
-      - name: Get latest tag or use default
-        id: tag
+      - name: Install UPX
+        run: choco install upx -y
+
+      - name: Build Windows executable
+        run: pyinstaller report-convertor.spec
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: dist/report-convertor.exe
+
+  # ── 2b. macOS build ──────────────────────────────────────────────────────
+  build-macos:
+    needs: version
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    env:
+      S3_BUCKET: ${{ secrets.S3_BUCKET }}
+      S3_FOLDER: ${{ secrets.S3_FOLDER }}
+      S3_REPORT_FOLDER: ${{ secrets.S3_REPORT_FOLDER }}
+      S3_REGION: ${{ secrets.S3_REGION }}
+      S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+      S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
         run: |
-          $tags = git tag --sort=-v:refname | Select-Object -First 1
-          if ($tags) {
-            $version = $tags.TrimStart('v')
-            $parts = $version.Split('.')
-            $patch = [int]$parts[2] + 1
-            $newVersion = "$($parts[0]).$($parts[1]).$patch"
-          } else {
-            $newVersion = "0.1.0"
-          }
-          Write-Host "New version: $newVersion"
-          echo "new_version=$newVersion" >> $env:GITHUB_OUTPUT
-          echo "tag_version=v$newVersion" >> $env:GITHUB_OUTPUT
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,packaging]"
 
-      - name: Create tag
-        run: git tag ${{ steps.tag.outputs.tag_version }}
+      - name: Run tests
+        env:
+          QT_QPA_PLATFORM: offscreen   # headless Qt for CI
+        run: pytest
 
-      - name: Push tag
-        run: git push origin ${{ steps.tag.outputs.tag_version }}
+      - name: Build macOS app bundle
+        run: pyinstaller report-convertor-macos.spec
 
-      - name: Install UPX for compression
+      - name: Zip app bundle (preserves extended attributes)
         run: |
-          choco install upx -y
+          ditto -c -k --sequesterRsrc --keepParent \
+            dist/report-convertor.app \
+            dist/report-convertor-macos.zip
 
-      - name: Build executable
-        run: |
-          pyinstaller report-convertor.spec
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: dist/report-convertor-macos.zip
+
+  # ── 3. Create GitHub Release with both builds ────────────────────────────
+  release:
+    needs: [version, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-exe
+          path: artifacts/
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-app
+          path: artifacts/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ steps.tag.outputs.tag_version }}
-          name: Release ${{ steps.tag.outputs.tag_version }}
+          tag_name: ${{ needs.version.outputs.tag_version }}
+          name: Release ${{ needs.version.outputs.tag_version }}
           draft: false
           prerelease: false
           generate_release_notes: true
           files: |
-            dist/report-convertor.exe
+            artifacts/report-convertor.exe
+            artifacts/report-convertor-macos.zip
             .env.example

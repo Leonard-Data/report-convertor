@@ -29,9 +29,42 @@ class TemplateEditorController:
         self._preview = PreviewService()
         self._generator = ReportGenerator()
         self._reader = WorkbookReader()
-        self._s3_repo = S3TemplateRepository()
-        self._s3_uploader = S3Uploader()
-        self._s3_report_repo = S3ReportRepository()
+        # S3 repos are created on first access so the app can start without
+        # a .env file present; missing credentials surface as dialog errors
+        # only when the user actually triggers an S3 operation.
+        self.__s3_repo: S3TemplateRepository | None = None
+        self.__s3_uploader: S3Uploader | None = None
+        self.__s3_report_repo: S3ReportRepository | None = None
+
+    @property
+    def _s3_repo(self) -> S3TemplateRepository:
+        if self.__s3_repo is None:
+            self.__s3_repo = S3TemplateRepository()
+        return self.__s3_repo
+
+    @_s3_repo.setter
+    def _s3_repo(self, value: S3TemplateRepository) -> None:
+        self.__s3_repo = value
+
+    @property
+    def _s3_uploader(self) -> S3Uploader:
+        if self.__s3_uploader is None:
+            self.__s3_uploader = S3Uploader()
+        return self.__s3_uploader
+
+    @_s3_uploader.setter
+    def _s3_uploader(self, value: S3Uploader) -> None:
+        self.__s3_uploader = value
+
+    @property
+    def _s3_report_repo(self) -> S3ReportRepository:
+        if self.__s3_report_repo is None:
+            self.__s3_report_repo = S3ReportRepository()
+        return self.__s3_report_repo
+
+    @_s3_report_repo.setter
+    def _s3_report_repo(self, value: S3ReportRepository) -> None:
+        self.__s3_report_repo = value
 
     def new_draft(self) -> None:
         self._editor.load_draft(
